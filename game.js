@@ -19,10 +19,16 @@ loadSprite("pipeTopLeft", "ReTPiWY.png")
 loadSprite("pipeTopRight", "hj2GK4n.png")
 loadSprite("pipeBotLeft", "c1cYSbt.png")
 loadSprite("pipeBotRight", "nqQ79eI.png")
+loadSprite("blueBlock", "fVscIbn.png")
+loadSprite("blueBrick", "3e5YRQd.png")
+loadSprite("blueSteel", "gqVoI2b.png")
+loadSprite("blueGoomba", "SvV4ueD.png")
+loadSprite("blueBoxClosed", "RMqCc1G.png")
 
-scene("game", () => {
+scene("game", ({ level, score }) => {
   layer(["bg", "obj", "ui"], "obj")
-  const map = [
+  const maps = [
+    [
     "                                                        ",
     "                                                        ",
     "                                                        ",
@@ -34,7 +40,21 @@ scene("game", () => {
     "                                  -+                    ",
     "                           ^  ^   ()                    ",
     "====================================   ================="
-  ]
+  ],
+  [
+    "e                                                        e",
+    "e                                                        e",
+    "e                                                        e",
+    "e                                              -+        e",
+    "e                                              ()        e",
+    "e                                              xx        e",
+    "e        @@@@@@@@                             xxx        e",
+    "e                                            xxxx        e",
+    "e                                  x     x  xxxxx        e",
+    "e                       z    z     x     x xxxxxx        e",
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    !!!!!!!!!!!!!!!!!"
+  ],
+]
 
   const levelConfig = {
     width: 20,
@@ -46,23 +66,36 @@ scene("game", () => {
     "}": [sprite("boxOpened"), solid()],
     "(": [sprite("pipeBotLeft"), solid(), scale(0.5)],
     ")": [sprite("pipeBotRight"), solid(), scale(0.5)],
-    "-": [sprite("pipeTopLeft"), solid(), scale(0.5)],
-    "+": [sprite("pipeTopRight"), solid(), scale(0.5)],
-    "^": [sprite("goomba"), solid()],
-    "#": [sprite("shroom"), solid(), "shroom", body()],
+    "-": [sprite("pipeTopLeft"), solid(), scale(0.5), "pipe"],
+    "+": [sprite("pipeTopRight"), solid(), scale(0.5), "pipe"],
+    "^": [sprite("goomba"), solid(), "danger"],
+    "!": [sprite("blueBlock"), solid(), scale(0.5)],
+    "e": [sprite("blueBrick"), solid(), scale(0.5)],
+    "z": [sprite("blueGoomba"), solid(), scale(0.5), "danger"],
+    "@": [sprite("blueBoxClosed"), solid(), scale(0.5), "coin-box"],
+    "x": [sprite("blueSteel"), solid(), scale(0.5)],
   }
 
-  const gameLevel = addLevel(map, levelConfig)
+  const gameLevel = addLevel(maps[level], levelConfig)
+
+  const MOVE_SPEED = 120;
+  const SMALL_JUMP_FORCE = 360;
+  const BIG_JUMP_FORCE = 550
+  let CURRENT_JUMP_FORCE = SMALL_JUMP_FORCE;
+  const ENEMY_SPEED = 50;
+  let isJumping = true;
+  const FALL_DEATH = 400;
+
 const scoreLabel = add([
-    text("score"),
+    text(score),
     pos(30, 6),
     layer("ui"),
     {
-      value: "score",
+      value: score,
     }
   ])
 
-  add([text("level " + "test", pos(4,6))])
+  add([text("level " + parseInt(level + 1)), pos(100,6)])
 
   function big() {
     let timer = 0;
@@ -81,11 +114,13 @@ const scoreLabel = add([
         },
         smallify() {
           this.scale = vec2(1)
+          CURRENT_JUMP_FORCE = SMALL_JUMP_FORCE
           timer = 0
           isBig = false
         },
         biggify(time) {
           this.scale = vec2(2)
+          CURRENT_JUMP_FORCE = BIG_JUMP_FORCE
           timer = time
           isBig = true
         }
@@ -99,7 +134,7 @@ const scoreLabel = add([
     //adding gravity
     body(),
     origin("bot"),
-    // big()
+    big()
   ])
 
   action("shroom", (shroom) => {
@@ -130,9 +165,34 @@ const scoreLabel = add([
     scoreLabel.text = scoreLabel.value
   })
 
+  action("danger", (danger) => {
+    danger.move(-ENEMY_SPEED, 0)
+  })
+
+  player.collides("danger", (danger) => {
+    if(isJumping) {
+      destroy(danger)
+    } else {
+      go("lose", {score: scoreLabel.value})
+    }
+  })
+  player.collides("pipe", () => {
+    keyPress("down", () => {
+      go("game", {
+        level: (level + 1),
+        score: scoreLabel.value
+      })
+    })
+  })
+  
+  player.action(() => {
+    camPos(player.pos)
+    if (player.pos.y >= FALL_DEATH) {
+      go("lose", {score: scoreLabel.value })
+    }
+  })
+
   //key bindings
-const MOVE_SPEED = 120;
-const JUMP_FORCE = 360;
 
   keyDown("left", () => {
     player.move(-MOVE_SPEED, 0)
@@ -141,12 +201,23 @@ const JUMP_FORCE = 360;
     player.move(MOVE_SPEED, 0)
   })
 
+  player.action(() => {
+    if (player.grounded()) {
+      isJumping = false;
+    }
+  })
+
   keyPress("space", () => {
     if (player.grounded()) {
-      player.jump(JUMP_FORCE)
+      isJumping = true
+      player.jump(CURRENT_JUMP_FORCE)
     }
   })
 
 })
 
-start("game")
+scene("lose", ({ score }) => {
+  add(text(score, 32), origin("center", pos(width()/2), height()/2))
+})
+
+start("game", { level: 0, score: 0 })
